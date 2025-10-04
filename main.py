@@ -1,43 +1,27 @@
 import os
-import logging
-from aiogram import Bot, Dispatcher, types
-from aiogram.utils import executor
+from telegram import Update
+from telegram.ext import Application, MessageHandler, filters, ContextTypes
 
-# 🔹 Включаем логирование
-logging.basicConfig(level=logging.INFO)
+# Получаем токен и ID из переменных окружения Railway
+TOKEN = os.getenv("BOT_TOKEN")  # обязательно создайте переменную BOT_TOKEN в Railway
+ADMIN_ID = int(os.getenv("ADMIN_ID"))  # создайте переменную ADMIN_ID в Railway
 
-# 🔹 Загружаем переменные окружения из Railway
-BOT_TOKEN = os.getenv("8228754936:AAG6zuPPPBxG5Ljc5MHazuCb3AhiSdTtc84")
-ADMIN_ID = int(os.getenv("7714575966"))
-
-# 🔹 Проверка, что токен и админ заданы
-if not BOT_TOKEN or not ADMIN_ID:
-    raise ValueError("❌ Ошибка: переменные BOT_TOKEN и ADMIN_ID не заданы в Railway Variables!")
-
-# 🔹 Создаём бота и диспетчер
-bot = Bot(token="8228754936:AAG6zuPPPBxG5Ljc5MHazuCb3AhiSdTtc84")
-dp = Dispatcher(bot)
-
-# Словарь: id админского сообщения → id пользователя
+# Словарь для связи сообщений админа и пользователей
 message_map = {}
 
+# 📩 Обработка сообщений от пользователей
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id == ADMIN_ID:
+        return  # игнорируем сообщения самого админа
 
-# 📌 Команда /start
-@dp.message_handler(commands=['start'])
-async def start_command(message: types.Message):
-    if message.from_user.id == ADMIN_ID:
-        await message.reply("👋 Привет, Админ! Бот запущен ✅")
-    else:
-        await message.reply("Привет! Напиши сообщение, и админ его получит.")
+    user_id = update.message.from_user.id
+    username = update.message.from_user.username or "Без ника"
+    first_name = update.message.from_user.first_name or "Без имени"
 
+    # --- 1. Ответ пользователю (анонимный) ---
+    await update.message.reply_text("✅ Твоё анонимное сообщение получено!")
 
-# 📩 Пересылка сообщений от пользователей админу
-@dp.message_handler(lambda m: m.from_user.id != ADMIN_ID)
-async def handle_user_message(message: types.Message):
-    user_id = message.from_user.id
-    username = message.from_user.username or "Без ника"
-    first_name = message.from_user.first_name or "Без имени"
-
+    # --- 2. Отправка админу ---
     header = (
         f"👤 Новое сообщение:\n"
         f"ID: {user_id}\n"
@@ -45,65 +29,74 @@ async def handle_user_message(message: types.Message):
         f"Юзернейм: @{username}"
     )
 
-    # Отправляем админу сообщение
-    admin_msg = await bot.send_message(
-        chat_id=7714575966,
-        text=f"{header}\n\n📩 {message.text or '[Вложение]'}"
-    )
+    # Сначала текст (если есть)
+    if update.message.text:
+        admin_msg = await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=f"{header}\n\n📩 Текст: {update.message.text}"
+        )
+    else:
+        admin_msg = await context.bot.send_message(chat_id=ADMIN_ID, text=header)
 
-    # Запоминаем связь "сообщение админа → id пользователя"
+    # Сохраняем связь для ответа
     message_map[admin_msg.message_id] = user_id
 
     # Пересылаем вложения
-    if message.photo:
-        await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption="📷 Фото")
-    if message.document:
-        await bot.send_document(ADMIN_ID, message.document.file_id, caption="📄 Документ")
-    if message.voice:
-        await bot.send_voice(ADMIN_ID, message.voice.file_id, caption="🎤 Голосовое")
-    if message.audio:
-        await bot.send_audio(ADMIN_ID, message.audio.file_id, caption="🎵 Аудио")
-    if message.video:
-        await bot.send_video(ADMIN_ID, message.video.file_id, caption="🎬 Видео")
-    if message.sticker:
-        await bot.send_sticker(ADMIN_ID, message.sticker.file_id)
+    if update.message.photo:
+        await context.bot.send_photo(ADMIN_ID, update.message.photo[-1].file_id, caption="📷 Фото")
+    if update.message.document:
+        await context.bot.send_document(ADMIN_ID, update.message.document.file_id, caption="📄 Документ")
+    if update.message.voice:
+        await context.bot.send_voice(ADMIN_ID, update.message.voice.file_id, caption="🎤 Голосовое")
+    if update.message.audio:
+        await context.bot.send_audio(ADMIN_ID, update.message.audio.file_id, caption="🎵 Аудио")
+    if update.message.video:
+        await context.bot.send_video(ADMIN_ID, update.message.video.file_id, caption="🎬 Видео")
+    if update.message.sticker:
+        await context.bot.send_sticker(ADMIN_ID, update.message.sticker.file_id)
 
-    # Подтверждение пользователю
-    await message.reply("✅ Твоё сообщение передано админу!")
+# 🔄 Обработка ответов админа
+async def handle_admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
 
-
-# 🔄 Ответы админа
-@dp.message_handler(lambda m: m.from_user.id == ADMIN_ID, content_types=types.ContentTypes.ANY)
-async def handle_admin_reply(message: types.Message):
-    if message.reply_to_message:
-        reply_to_id = message.reply_to_message.message_id
+    if update.message.reply_to_message:
+        reply_to_id = update.message.reply_to_message.message_id
         if reply_to_id in message_map:
             user_id = message_map[reply_to_id]
 
             # Отправка текста
-            if message.text:
-                await bot.send_message(user_id, f"📩 Ответ от админа:\n{message.text}")
+            if update.message.text:
+                await context.bot.send_message(chat_id=user_id, text=f"📩 Ответ от админа:\n{update.message.text}")
 
             # Отправка вложений
-            if message.photo:
-                await bot.send_photo(user_id, message.photo[-1].file_id)
-            if message.document:
-                await bot.send_document(user_id, message.document.file_id)
-            if message.voice:
-                await bot.send_voice(user_id, message.voice.file_id)
-            if message.audio:
-                await bot.send_audio(user_id, message.audio.file_id)
-            if message.video:
-                await bot.send_video(user_id, message.video.file_id)
-            if message.sticker:
-                await bot.send_sticker(user_id, message.sticker.file_id)
+            if update.message.photo:
+                await context.bot.send_photo(user_id, update.message.photo[-1].file_id)
+            if update.message.document:
+                await context.bot.send_document(user_id, update.message.document.file_id)
+            if update.message.voice:
+                await context.bot.send_voice(user_id, update.message.voice.file_id)
+            if update.message.audio:
+                await context.bot.send_audio(user_id, update.message.audio.file_id)
+            if update.message.video:
+                await context.bot.send_video(user_id, update.message.video.file_id)
+            if update.message.sticker:
+                await context.bot.send_sticker(user_id, update.message.sticker.file_id)
 
-            await message.reply("✅ Ответ отправлен пользователю.")
+            await update.message.reply_text("✅ Ответ отправлен пользователю.")
         else:
-            await message.reply("⚠ Пользователь не найден.")
+            await update.message.reply_text("⚠ Пользователь не найден.")
 
+def main():
+    app = Application.builder().token(TOKEN).build()
 
-# 🚀 Запуск бота
+    # Ловим все сообщения от пользователей
+    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
+
+    # Ловим ответы админа
+    app.add_handler(MessageHandler(filters.ALL & filters.REPLY, handle_admin_reply))
+
+    app.run_polling()
+
 if _name_ == "_main_":
-    executor.start_polling(dp, skip_updates=True)
-
+    main()
