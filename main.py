@@ -7,7 +7,7 @@ TOKEN = "8228754936:AAG6zuPPPBxG5Ljc5MHazuCb3AhiSdTtc84"
 ADMIN_ID = 7714575966   
 
 # === Flask-приложение ===
-app = Flask(_name_)
+app = Flask(__name__)
 
 # === Telegram Application ===
 application = Application.builder().token(TOKEN).build()
@@ -111,3 +111,4 @@ application.add_handler(MessageHandler(filters.ALL & filters.REPLY, handle_admin
 
 if _name_ == "_main_":
     app.run(host="0.0.0.0", port=8080)
+
