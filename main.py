@@ -4,7 +4,7 @@ from telegram.ext import Application, MessageHandler, filters, ContextTypes
 
 # берем токен и id из Railway Variables
 TOKEN = os.getenv("8228754936:AAG6zuPPPBxG5Ljc5MHazuCb3AhiSdTtc84")
-ADMIN_ID = int(os.getenv("7714575966"))
+ADMIN_ID = int(os.getenv("ADMIN_ID"))
 
 # проверка, что переменные существуют
 if not TOKEN or not ADMIN_ID:
@@ -85,4 +85,5 @@ def main():
 
 if _name_ == "_main_":
     main()
+
 
