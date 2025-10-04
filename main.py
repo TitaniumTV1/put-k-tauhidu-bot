@@ -1,34 +1,32 @@
-from flask import Flask, request
+import os
 from telegram import Update
 from telegram.ext import Application, MessageHandler, filters, ContextTypes
 
-# === Настройки ===
-TOKEN = "8228754936:AAG6zuPPPBxG5Ljc5MHazuCb3AhiSdTtc84"
-ADMIN_ID = 7714575966   
+# берем токен и id из Railway Variables
+TOKEN = os.getenv("TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID"))
 
-# === Flask-приложение ===
-app = Flask(__name__)
+# проверка, что переменные существуют
+if not TOKEN or not ADMIN_ID:
+    raise ValueError("❌ Переменные окружения TOKEN и ADMIN_ID не заданы на Railway!")
 
-# === Telegram Application ===
-application = Application.builder().token(TOKEN).build()
-
-# связь: id админского сообщения -> id пользователя
+# связь сообщений
 message_map = {}
 
 
-# 📩 обработка входящих сообщений от пользователей
+# 📩 обработка входящих сообщений
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id == ADMIN_ID:
-        return  # игнорируем твои собственные сообщения
+        return  # игнорируем твои сообщения как пользователя
 
     user_id = update.message.from_user.id
     username = update.message.from_user.username or "Без ника"
     first_name = update.message.from_user.first_name or "Без имени"
 
-    # --- ответ пользователю ---
+    # ответ пользователю
     await update.message.reply_text("✅ Твоё анонимное сообщение получено!")
 
-    # --- отправка админу ---
+    # сообщение админу
     header = (
         f"👤 Новое сообщение:\n"
         f"ID: {user_id}\n"
@@ -36,28 +34,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Юзернейм: @{username}"
     )
 
-    if update.message.text:
-        admin_msg = await context.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=f"{header}\n\n📩 Текст: {update.message.text}"
-        )
-    else:
-        admin_msg = await context.bot.send_message(chat_id=ADMIN_ID, text=header)
+    admin_msg = await context.bot.send_message(
+        chat_id=ADMIN_ID,
+        text=f"{header}\n\n📩 Текст: {update.message.text}" if update.message.text else header
+    )
 
     message_map[admin_msg.message_id] = user_id
-
-    if update.message.photo:
-        await context.bot.send_photo(ADMIN_ID, update.message.photo[-1].file_id, caption="📷 Фото")
-    if update.message.document:
-        await context.bot.send_document(ADMIN_ID, update.message.document.file_id, caption="📄 Документ")
-    if update.message.voice:
-        await context.bot.send_voice(ADMIN_ID, update.message.voice.file_id, caption="🎤 Голосовое")
-    if update.message.audio:
-        await context.bot.send_audio(ADMIN_ID, update.message.audio.file_id, caption="🎵 Аудио")
-    if update.message.video:
-        await context.bot.send_video(ADMIN_ID, update.message.video.file_id, caption="🎬 Видео")
-    if update.message.sticker:
-        await context.bot.send_sticker(ADMIN_ID, update.message.sticker.file_id)
 
 
 # 🔄 обработка ответов админа
@@ -91,24 +73,15 @@ async def handle_admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await update.message.reply_text("⚠ Пользователь не найден.")
 
 
-# === Flask Webhook ===
-@app.route(f"/{TOKEN}", methods=["POST"])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    application.update_queue.put_nowait(update)
-    return "ok", 200
+def main():
+    app = Application.builder().token(TOKEN).build()
 
+    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(filters.ALL & filters.REPLY, handle_admin_reply))
 
-@app.route("/")
-def home():
-    return "Бот работает!", 200
-
-
-# === Регистрация хендлеров ===
-application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
-application.add_handler(MessageHandler(filters.ALL & filters.REPLY, handle_admin_reply))
+    print("🤖 Бот запущен и работает на Railway!")
+    app.run_polling()
 
 
 if _name_ == "_main_":
-    app.run(host="0.0.0.0", port=8080)
-
+    main()
