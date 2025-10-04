@@ -7,15 +7,15 @@ from aiogram.utils import executor
 logging.basicConfig(level=logging.INFO)
 
 # 🔹 Загружаем переменные окружения из Railway
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID"))
+BOT_TOKEN = os.getenv("8228754936:AAG6zuPPPBxG5Ljc5MHazuCb3AhiSdTtc84")
+ADMIN_ID = int(os.getenv("7714575966"))
 
 # 🔹 Проверка, что токен и админ заданы
 if not BOT_TOKEN or not ADMIN_ID:
     raise ValueError("❌ Ошибка: переменные BOT_TOKEN и ADMIN_ID не заданы в Railway Variables!")
 
 # 🔹 Создаём бота и диспетчер
-bot = Bot(token=8228754936:AAG6zuPPPBxG5Ljc5MHazuCb3AhiSdTtc84)
+bot = Bot(token="8228754936:AAG6zuPPPBxG5Ljc5MHazuCb3AhiSdTtc84")
 dp = Dispatcher(bot)
 
 # Словарь: id админского сообщения → id пользователя
@@ -106,3 +106,4 @@ async def handle_admin_reply(message: types.Message):
 # 🚀 Запуск бота
 if _name_ == "_main_":
     executor.start_polling(dp, skip_updates=True)
+
